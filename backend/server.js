@@ -71,6 +71,25 @@ app.get('/api/history', protect, async (req, res) => {
     }
 });
 
+// DELETE Route: Remove an image
+app.delete('/api/images/:id', protect, async (req, res) => {
+    try {
+        const image = await Image.findById(req.params.id);
+
+        if (!image) return res.status(404).json({ error: "Image not found" });
+
+        // Ensure the user trying to delete owns the image
+        if (image.user.toString() !== req.user.id) {
+            return res.status(401).json({ error: "Not authorized" });
+        }
+
+        await image.deleteOne();
+        res.status(200).json({ success: true, message: "Image deleted" });
+    } catch (error) {
+        console.error("Error deleting image:", error);
+        res.status(500).json({ error: "Failed to delete image" });
+    }
+});
 
 // Start the server
 app.listen(port, () => {

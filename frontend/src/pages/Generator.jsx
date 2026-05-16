@@ -7,6 +7,9 @@ function Generator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
+  const [user, setUser] = useState(null);
+  const [viewImage, setViewImage] = useState(null);
+
   const navigate = useNavigate();
 
   const getAuthHeaders = () => {
@@ -15,6 +18,9 @@ function Generator() {
   };
 
   useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) setUser(JSON.parse(storedUser));
+
     const fetchHistory = async () => {
       try {
         const response = await axios.get(
@@ -25,14 +31,12 @@ function Generator() {
           setHistory(response.data.images);
         }
       } catch (err) {
-        if (err.response?.status === 401) {
-          localStorage.removeItem("token");
-          navigate("/auth");
-        }
+        if (err.response?.status === 401) handleLogout();
       }
     };
+
     fetchHistory();
-  }, [navigate]);
+  }, []);
 
   const handleGenerate = async (e) => {
     e.preventDefault();
@@ -43,7 +47,7 @@ function Generator() {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/generate-image",
+         `${import.meta.env.VITE_API_URL}/api/generate-image`,
         { prompt },
         getAuthHeaders()
       );
@@ -59,45 +63,59 @@ function Generator() {
     }
   };
 
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this image?")) return;
+
+    try {
+      await axios.delete(
+        `http://localhost:5000/api/images/${id}`,
+        getAuthHeaders()
+      );
+      setHistory(history.filter((img) => img._id !== id));
+    } catch {
+      alert("Delete failed");
+    }
+  };
+
   const downloadImage = (imageUrl, promptText) => {
     const link = document.createElement("a");
     link.href = imageUrl;
     const cleanName = promptText
       .replace(/[^a-zA-Z0-9]/g, "_")
       .toLowerCase()
-      .slice(0, 15);
+      .slice(0, 20);
     link.download = `alis_ai_${cleanName}.jpg`;
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.clear();
     navigate("/");
-    window.location.reload();
   };
 
   return (
     <div style={styles.wrapper}>
       <div style={styles.particles}></div>
 
-      {/* Navbar */}
+      {/* NAVBAR */}
       <nav style={styles.navbar}>
         <div style={styles.logo}>Ali's AI</div>
-        <button style={styles.logoutBtn} onClick={handleLogout}>
-          Logout
-        </button>
+
+        <div style={styles.navRight}>
+          <div style={styles.userBadge}>
+            👤 {user ? user.name : "Artist"}
+          </div>
+          <button onClick={handleLogout} style={styles.logoutBtn}>
+            Logout
+          </button>
+        </div>
       </nav>
 
-      {/* Main Content */}
+      {/* MAIN */}
       <div style={styles.container}>
         <h1 style={styles.title}>AI Workspace</h1>
-        <p style={styles.subtitle}>
-          Generate cinematic AI visuals from your imagination.
-        </p>
 
-        {/* Prompt Box */}
+        {/* PROMPT BOX */}
         <form onSubmit={handleGenerate} style={styles.form}>
           <input
             type="text"
@@ -118,30 +136,77 @@ function Generator() {
 
         {error && <div style={styles.error}>{error}</div>}
 
-        {/* Gallery */}
-        <h2 style={styles.galleryTitle}>Your Gallery</h2>
-
-        <div style={styles.grid}>
-          {history.map((item) => (
-            <div key={item._id} style={styles.card}>
-              <img
-                src={item.imageUrl}
-                alt={item.prompt}
-                style={styles.image}
-              />
-              <p style={styles.promptText}>{item.prompt}</p>
-              <button
-                onClick={() =>
-                  downloadImage(item.imageUrl, item.prompt)
-                }
-                style={styles.downloadBtn}
+        {/* GALLERY */}
+        {history.length === 0 ? (
+          <p style={styles.emptyText}>
+            No images yet. Start creating something amazing.
+          </p>
+        ) : (
+          <div style={styles.grid}>
+            {history.map((item) => (
+              <div
+                key={item._id}
+                style={styles.card}
+                onClick={() => setViewImage(item)}
               >
-                ⬇ Download
-              </button>
-            </div>
-          ))}
-        </div>
+                <img
+                  src={item.imageUrl}
+                  alt={item.prompt}
+                  style={styles.image}
+                />
+
+                <div style={styles.overlay}>
+                  <p style={styles.promptText}>{item.prompt}</p>
+
+                  <div style={styles.actions}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadImage(item.imageUrl, item.prompt);
+                      }}
+                      style={styles.iconBtn}
+                    >
+                      ⬇
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(item._id);
+                      }}
+                      style={styles.iconBtn}
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* MODAL */}
+      {viewImage && (
+        <div
+          style={styles.modalBackdrop}
+          onClick={() => setViewImage(null)}
+        >
+          <div
+            style={styles.modalContent}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={viewImage.imageUrl}
+              alt={viewImage.prompt}
+              style={{ width: "100%", borderRadius: "12px" }}
+            />
+            <p style={{ marginTop: "1rem", color: "#cbd5e1" }}>
+              {viewImage.prompt}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -151,11 +216,11 @@ function Generator() {
 const styles = {
   wrapper: {
     minHeight: "100vh",
-    position: "relative",
     background:
       "radial-gradient(circle at 20% 20%, #1e293b, #0f172a 40%, #020617 100%)",
     color: "#fff",
     fontFamily: "Inter, sans-serif",
+    position: "relative",
   },
 
   navbar: {
@@ -172,9 +237,19 @@ const styles = {
     zIndex: 10,
   },
 
-  logo: {
-    fontWeight: "700",
-    fontSize: "1.2rem",
+  logo: { fontWeight: "700", fontSize: "1.2rem" },
+
+  navRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "1rem",
+  },
+
+  userBadge: {
+    padding: "0.5rem 1rem",
+    borderRadius: "12px",
+    background: "rgba(255,255,255,0.08)",
+    fontSize: "0.9rem",
   },
 
   logoutBtn: {
@@ -187,7 +262,7 @@ const styles = {
   },
 
   container: {
-    paddingTop: "120px",
+    paddingTop: "110px",
     paddingLeft: "6%",
     paddingRight: "6%",
     paddingBottom: "60px",
@@ -195,13 +270,7 @@ const styles = {
 
   title: {
     fontSize: "clamp(2rem,4vw,3rem)",
-    fontWeight: "800",
-    marginBottom: "0.5rem",
-  },
-
-  subtitle: {
-    color: "#cbd5e1",
-    marginBottom: "2rem",
+    marginBottom: "1.5rem",
   },
 
   form: {
@@ -217,9 +286,8 @@ const styles = {
     padding: "1rem",
     borderRadius: "14px",
     border: "1px solid rgba(255,255,255,0.2)",
-    background: "rgba(255,255,255,0.05)",
+    background: "rgba(255,255,255,0.06)",
     color: "#fff",
-    outline: "none",
   },
 
   generateBtn: {
@@ -232,14 +300,12 @@ const styles = {
     cursor: "pointer",
   },
 
-  error: {
-    color: "#f87171",
-    marginBottom: "1rem",
-  },
+  error: { color: "#f87171", marginBottom: "1rem" },
 
-  galleryTitle: {
-    marginTop: "2rem",
-    marginBottom: "1rem",
+  emptyText: {
+    textAlign: "center",
+    marginTop: "3rem",
+    color: "#94a3b8",
   },
 
   grid: {
@@ -249,55 +315,76 @@ const styles = {
   },
 
   card: {
-    background: "rgba(255,255,255,0.05)",
-    backdropFilter: "blur(15px)",
+    position: "relative",
     borderRadius: "16px",
-    padding: "1rem",
-    border: "1px solid rgba(255,255,255,0.08)",
-    transition: "0.3s",
+    overflow: "hidden",
+    cursor: "pointer",
   },
 
   image: {
     width: "100%",
-    height: "220px",
+    height: "300px",
     objectFit: "cover",
-    borderRadius: "12px",
-    marginBottom: "0.8rem",
+    transition: "transform 0.4s ease",
+  },
+
+  overlay: {
+    position: "absolute",
+    bottom: 0,
+    width: "100%",
+    padding: "1rem",
+    background:
+      "linear-gradient(to top, rgba(0,0,0,0.8), transparent)",
   },
 
   promptText: {
-    fontSize: "0.9rem",
-    color: "#cbd5e1",
-    marginBottom: "0.8rem",
+    fontSize: "0.85rem",
+    marginBottom: "0.5rem",
   },
 
-  downloadBtn: {
-    width: "100%",
-    padding: "0.7rem",
-    borderRadius: "10px",
+  actions: {
+    display: "flex",
+    gap: "0.5rem",
+  },
+
+  iconBtn: {
+    padding: "0.4rem 0.6rem",
+    borderRadius: "8px",
     border: "none",
-    background: "linear-gradient(90deg,#10b981,#059669)",
-    color: "#fff",
     cursor: "pointer",
   },
 
- particles: {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  width: "100vw",
-  height: "100vh",
-  pointerEvents: "none",
-  backgroundImage:
-    "radial-gradient(2px 2px at 20% 30%, white, transparent)," +
-    "radial-gradient(2px 2px at 70% 60%, white, transparent)," +
-    "radial-gradient(1.5px 1.5px at 40% 80%, white, transparent)",
-  backgroundRepeat: "repeat",
-  backgroundSize: "600px 600px",
-  animation: "moveParticles 80s linear infinite",
-  opacity: 0.12,
-  zIndex: 0,
-},
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.8)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "2rem",
+    zIndex: 20,
+  },
+
+  modalContent: {
+    maxWidth: "900px",
+    width: "100%",
+  },
+
+  particles: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100vw",
+    height: "100vh",
+    pointerEvents: "none",
+    backgroundImage:
+      "radial-gradient(2px 2px at 20% 30%, white, transparent)," +
+      "radial-gradient(2px 2px at 70% 60%, white, transparent)",
+    backgroundRepeat: "repeat",
+    backgroundSize: "600px 600px",
+    animation: "moveParticles 80s linear infinite",
+    opacity: 0.1,
+  },
 };
 
 export default Generator;

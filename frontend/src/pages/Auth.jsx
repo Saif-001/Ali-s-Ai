@@ -4,6 +4,7 @@ import axios from "axios";
 
 function Auth({ setIsAuthenticated }) {
   const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,13 +25,22 @@ function Auth({ setIsAuthenticated }) {
     const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
 
     try {
+      const payload = isLogin
+        ? { email, password }
+        : { name, email, password };
+
       const response = await axios.post(
-        `http://localhost:5000${endpoint}`,
-        { email, password }
+        `${import.meta.env.VITE_API_URL}${endpoint}`,
+        payload
       );
 
       if (response.data.success) {
         localStorage.setItem("token", response.data.token);
+        localStorage.setItem(
+          "user",
+          JSON.stringify(response.data.user)
+        );
+
         setIsAuthenticated(true);
         navigate("/generate");
       }
@@ -56,18 +66,32 @@ function Auth({ setIsAuthenticated }) {
         }}
       >
         <h2 style={styles.title}>
-          {isLogin ? "Welcome Back" : "Create Account"}
+          {isLogin ? "Welcome Back" : "Join Ali's AI"}
         </h2>
 
         <p style={styles.subtitle}>
           {isLogin
-            ? "Sign in to continue creating AI visuals."
-            : "Join Ali's AI and start generating for free."}
+            ? "Sign in to access your AI workspace."
+            : "Create your account and start generating images."}
         </p>
 
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={styles.form}>
+          {!isLogin && (
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Ali Khan"
+                required
+                style={styles.input}
+              />
+            </div>
+          )}
+
           <div style={styles.inputGroup}>
             <label style={styles.label}>Email</label>
             <input
@@ -122,11 +146,12 @@ function Auth({ setIsAuthenticated }) {
   );
 }
 
-/* ================= STYLES ================= */
+/* ================== STYLES ================== */
 
 const styles = {
   wrapper: {
-    minHeight: "100vh",
+    height: "100vh",
+    overflow: "hidden",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -138,9 +163,27 @@ const styles = {
     color: "#fff",
   },
 
+  particles: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100vw",
+    height: "100vh",
+    pointerEvents: "none",
+    backgroundImage:
+      "radial-gradient(2px 2px at 20% 30%, white, transparent)," +
+      "radial-gradient(2px 2px at 70% 60%, white, transparent)," +
+      "radial-gradient(1.5px 1.5px at 40% 80%, white, transparent)",
+    backgroundRepeat: "repeat",
+    backgroundSize: "600px 600px",
+    animation: "moveParticles 80s linear infinite",
+    opacity: 0.12,
+    zIndex: 0,
+  },
+
   card: {
     width: "100%",
-    maxWidth: "420px",
+    maxWidth: "430px",
     padding: "3rem 2.5rem",
     borderRadius: "20px",
     background: "rgba(255,255,255,0.05)",
@@ -187,7 +230,6 @@ const styles = {
     background: "rgba(255,255,255,0.06)",
     color: "#fff",
     outline: "none",
-    transition: "0.3s",
   },
 
   button: {
@@ -224,21 +266,6 @@ const styles = {
     fontSize: "0.85rem",
     marginBottom: "1rem",
     color: "#f87171",
-  },
-
-  particles: {
-    position: "absolute",
-    width: "200%",
-    // height: "200%",
-    backgroundImage:
-      "radial-gradient(2px 2px at 20% 30%, white, transparent)," +
-      "radial-gradient(2px 2px at 70% 60%, white, transparent)," +
-      "radial-gradient(1.5px 1.5px at 40% 80%, white, transparent)",
-    backgroundRepeat: "repeat",
-    backgroundSize: "600px 600px",
-    animation: "moveParticles 80s linear infinite",
-    opacity: 0.12,
-    zIndex: 0,
   },
 };
 

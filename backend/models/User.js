@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
+  name: { 
+    type: String, 
+    required: true, // <-- New Field
+    trim: true 
+  },
   email: {
     type: String,
     required: true,
@@ -16,12 +21,9 @@ const userSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-// Hash the password before saving
-// NOTICE: We removed 'next' from the arguments here
+// Pre-save hook to hash password
 userSchema.pre('save', async function () {
-  // If password wasn't modified, just return
   if (!this.isModified('password')) return;
-  
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
